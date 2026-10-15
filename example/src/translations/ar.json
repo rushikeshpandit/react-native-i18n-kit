@@ -1,0 +1,28 @@
+{
+  "common": {
+    "appTitle": "مثال I18nKit"
+  },
+  "home": {
+    "greeting": "مرحبًا، {{name}}!",
+    "subtitle": "تتغير هذه الشاشة بالكامل إلى اللغة المختارة دون إعادة تشغيل التطبيق.",
+    "languageSectionTitle": "اختر لغة",
+    "deviceInfoSectionTitle": "لغة الجهاز (للقراءة فقط، أصلية)",
+    "country": "الدولة",
+    "calendar": "التقويم",
+    "timeZone": "المنطقة الزمنية",
+    "decimalSeparator": "فاصل الأعشار",
+    "groupingSeparator": "فاصل الآلاف",
+    "clockFormat": "تنسيق الساعة",
+    "clock24h": "24 ساعة",
+    "clock12h": "12 ساعة",
+    "measurementSystem": "نظام القياس",
+    "metric": "متري",
+    "imperial": "إمبراطوري",
+    "writingDirection": "اتجاه الكتابة",
+    "rtl": "من اليمين إلى اليسار",
+    "ltr": "من اليسار إلى اليمين",
+    "itemCount": { "zero": "لا توجد عناصر في السلة", "one": "عنصر واحد في السلة", "other": "{{count}} عناصر في السلة" },
+    "addItem": "إضافة عنصر",
+    "removeItem": "إزالة عنصر"
+  }
+}

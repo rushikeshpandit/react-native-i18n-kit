@@ -1,0 +1,28 @@
+{
+  "common": {
+    "appTitle": "I18nKit उदाहरण"
+  },
+  "home": {
+    "greeting": "नमस्ते, {{name}}!",
+    "subtitle": "यह पूरी स्क्रीन आपकी चुनी हुई भाषा में बदल जाती है — ऐप को फिर से शुरू करने की ज़रूरत नहीं है।",
+    "languageSectionTitle": "एक भाषा चुनें",
+    "deviceInfoSectionTitle": "डिवाइस लोकेल (केवल पढ़ने के लिए, नेटिव)",
+    "country": "देश",
+    "calendar": "कैलेंडर",
+    "timeZone": "समय क्षेत्र",
+    "decimalSeparator": "दशमलव विभाजक",
+    "groupingSeparator": "समूह विभाजक",
+    "clockFormat": "घड़ी प्रारूप",
+    "clock24h": "24-घंटे",
+    "clock12h": "12-घंटे",
+    "measurementSystem": "माप प्रणाली",
+    "metric": "मेट्रिक",
+    "imperial": "इम्पीरियल",
+    "writingDirection": "लेखन दिशा",
+    "rtl": "दायें से बायें",
+    "ltr": "बायें से दायें",
+    "itemCount": { "zero": "कार्ट में कोई आइटम नहीं", "one": "कार्ट में 1 आइटम", "other": "कार्ट में {{count}} आइटम" },
+    "addItem": "आइटम जोड़ें",
+    "removeItem": "आइटम हटायें"
+  }
+}

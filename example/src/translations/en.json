@@ -1,0 +1,28 @@
+{
+  "common": {
+    "appTitle": "I18nKit Example"
+  },
+  "home": {
+    "greeting": "Hello, {{name}}!",
+    "subtitle": "This entire screen re-renders in your chosen language — no app restart needed.",
+    "languageSectionTitle": "Choose a language",
+    "deviceInfoSectionTitle": "Device locale (read-only, native)",
+    "country": "Country",
+    "calendar": "Calendar",
+    "timeZone": "Time zone",
+    "decimalSeparator": "Decimal separator",
+    "groupingSeparator": "Grouping separator",
+    "clockFormat": "Clock format",
+    "clock24h": "24-hour",
+    "clock12h": "12-hour",
+    "measurementSystem": "Measurement system",
+    "metric": "Metric",
+    "imperial": "Imperial",
+    "writingDirection": "Writing direction",
+    "rtl": "Right-to-left",
+    "ltr": "Left-to-right",
+    "itemCount": { "zero": "No items in cart", "one": "1 item in cart", "other": "{{count}} items in cart" },
+    "addItem": "Add item",
+    "removeItem": "Remove item"
+  }
+}

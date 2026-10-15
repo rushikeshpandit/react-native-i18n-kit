@@ -2,6 +2,7 @@ package com.i18nkit
 
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
+import com.facebook.react.bridge.UiThreadUtil
 import com.facebook.react.bridge.WritableArray
 import com.facebook.react.bridge.WritableMap
 import com.facebook.react.modules.core.DeviceEventManagerModule
@@ -23,7 +24,6 @@ class I18nKitModule(reactContext: ReactApplicationContext) :
 
     private val deviceLocaleProvider = DeviceLocaleProvider(reactContext)
     private val appLanguageManager = AppLanguageManager()
-    private var listenerCount = 0
 
     private val localeChangeReceiver = LocaleChangeReceiver(onLocaleChanged = ::emitLocaleChanged)
 
@@ -133,14 +133,17 @@ class I18nKitModule(reactContext: ReactApplicationContext) :
      * `INVALID_LOCALE` for a blank tag or `NATIVE_CALL_FAILED` on any other failure.
      */
     override fun setAppLanguage(languageTag: String, promise: Promise) {
-        try {
-            require(languageTag.isNotBlank()) { "languageTag must not be blank" }
-            val applied = appLanguageManager.setAppLanguage(languageTag)
-            promise.resolve(applied)
-        } catch (e: IllegalArgumentException) {
-            promise.reject("INVALID_LOCALE", "Invalid languageTag \"$languageTag\": ${e.message}", e)
-        } catch (e: Exception) {
-            promise.reject("NATIVE_CALL_FAILED", "setAppLanguage failed: ${e.message}", e)
+        if (languageTag.isBlank()) {
+            promise.reject("INVALID_LOCALE", "Invalid languageTag \"$languageTag\": must not be blank")
+            return
+        }
+        // AppCompatDelegate.setApplicationLocales must run on the main thread.
+        UiThreadUtil.runOnUiThread {
+            try {
+                promise.resolve(appLanguageManager.setAppLanguage(languageTag))
+            } catch (e: Exception) {
+                promise.reject("NATIVE_CALL_FAILED", "setAppLanguage failed: ${e.message}", e)
+            }
         }
     }
 
@@ -162,18 +165,14 @@ class I18nKitModule(reactContext: ReactApplicationContext) :
      *
      * @param eventName the event a JS listener subscribed to.
      */
-    override fun addListener(eventName: String) {
-        listenerCount++
-    }
+    override fun addListener(eventName: String) = Unit
 
     /**
      * No-op: required by the spec, not forwarded by `NativeEventEmitter` on Android.
      *
      * @param count number of JS listeners removed.
      */
-    override fun removeListeners(count: Double) {
-        listenerCount = (listenerCount - count.toInt()).coerceAtLeast(0)
-    }
+    override fun removeListeners(count: Double) = Unit
 
     /**
      * Called by React Native when the module's owning context is torn down;
@@ -186,7 +185,8 @@ class I18nKitModule(reactContext: ReactApplicationContext) :
 
     /** Emits `onLocaleChanged` to JS, skipping silently when React is not running. */
     private fun emitLocaleChanged() {
-        if (listenerCount <= 0) return
+        // The broadcast can arrive while React is not (or no longer) running.
+        if (!reactApplicationContext.hasActiveReactInstance()) return
         reactApplicationContext
             .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
             .emit(EVENT_LOCALE_CHANGED, null)

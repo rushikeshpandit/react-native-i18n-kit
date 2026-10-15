@@ -36,25 +36,32 @@ function resolvePath(
   }
 
   return typeof node === 'string' ||
-    (node && typeof node === 'object' && 'other' in node)
+    (node && typeof node === 'object' && typeof node.other === 'string')
     ? (node as TranslationValue)
     : undefined;
 }
 
 /**
- * Picks the correct plural bucket for `count`, following CLDR-ish fallback order.
+ * Picks the plural bucket for `count` using CLDR rules for `locale`
+ * (via `Intl.PluralRules`).
  *
  * @param map - Plural map with a mandatory `other` bucket.
  * @param count - The quantity being described.
+ * @param locale - BCP-47 locale whose plural rules apply.
  * @returns The selected string; `other` when the exact bucket is missing.
  */
-function resolvePlural(map: PluralMap, count: number): string {
+function resolvePlural(map: PluralMap, count: number, locale: string): string {
+  // An explicit "zero" bucket always wins for 0, regardless of language rules.
   if (count === 0 && map.zero !== undefined) return map.zero;
-  if (count === 1 && map.one !== undefined) return map.one;
-  if (count === 2 && map.two !== undefined) return map.two;
-  if (count > 2 && count < 6 && map.few !== undefined) return map.few;
-  if (count >= 6 && map.many !== undefined) return map.many;
-  return map.other;
+
+  let category: Intl.LDMLPluralRule | undefined;
+  try {
+    category = new Intl.PluralRules(locale).select(count);
+  } catch {
+    // Intl.PluralRules unavailable or locale tag invalid — use English-style rules.
+    category = count === 1 ? 'one' : undefined;
+  }
+  return (category && map[category]) ?? map.other;
 }
 
 /**
@@ -125,7 +132,7 @@ export function translate(
     const resolvedString =
       typeof value === 'string'
         ? value
-        : resolvePlural(value, options?.count ?? 0);
+        : resolvePlural(value, options?.count ?? 0, localeCode);
 
     return options ? interpolate(resolvedString, options) : resolvedString;
   }

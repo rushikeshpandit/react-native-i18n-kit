@@ -40,6 +40,16 @@ function getNativeModule(): Spec {
 }
 
 /**
+ * Tells whether a value is unusable as a language code / tag.
+ *
+ * @param value - Anything a caller might pass in from JavaScript.
+ * @returns `true` when `value` is not a string or contains only whitespace.
+ */
+function isBlankString(value: unknown): boolean {
+  return typeof value !== 'string' || value.trim().length === 0;
+}
+
+/**
  * Runs a synchronous native call after the platform and module checks,
  * normalising any thrown error into an {@link I18nKitError}.
  *
@@ -172,12 +182,12 @@ export function usesMetricSystem(): boolean {
  *
  * @param languageCode - A BCP-47 language code such as `"ar"` or `"he"`.
  * @returns `true` if the language is right-to-left, otherwise `false`.
- * @throws {I18nKitError} `INVALID_LOCALE` when `languageCode` is empty (the
- * native layer is not called); otherwise the same errors as the other native
- * calls.
+ * @throws {I18nKitError} `INVALID_LOCALE` when `languageCode` is empty,
+ * whitespace-only or not a string (the native layer is not called); otherwise
+ * the same errors as the other native calls.
  */
 export function isRTLForLanguage(languageCode: string): boolean {
-  if (!languageCode) {
+  if (isBlankString(languageCode)) {
     throw new I18nKitError(
       'INVALID_LOCALE',
       'isRTLForLanguage() requires a non-empty language code.'
@@ -193,10 +203,11 @@ export function isRTLForLanguage(languageCode: string): boolean {
  * @returns A promise resolving to `true` when the change applies immediately
  * (Android) or `false` when it only takes effect after the app restarts (iOS).
  * @throws {I18nKitError} `INVALID_LOCALE` (rejection) when `languageTag` is
- * empty; otherwise the same errors as the other native calls.
+ * empty, whitespace-only or not a string; otherwise the same errors as the
+ * other native calls.
  */
 export async function setAppLanguage(languageTag: string): Promise<boolean> {
-  if (!languageTag) {
+  if (isBlankString(languageTag)) {
     throw new I18nKitError(
       'INVALID_LOCALE',
       'setAppLanguage() requires a non-empty BCP-47 language tag.'

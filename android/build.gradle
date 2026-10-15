@@ -1,8 +1,9 @@
 buildscript {
   ext.I18nKit = [
     kotlinVersion: "2.0.21",
-    minSdkVersion: 24,
-    compileSdkVersion: 36
+    minSdkVersion: 29,
+    compileSdkVersion: 36,
+    targetSdkVersion: 36
   ]
 
   ext.getExtOrDefault = { prop ->
@@ -25,7 +26,6 @@ buildscript {
   }
 }
 
-
 apply plugin: "com.android.library"
 apply plugin: "kotlin-android"
 
@@ -37,15 +37,32 @@ android {
   compileSdkVersion getExtOrDefault("compileSdkVersion")
 
   defaultConfig {
+    // Android 10 (API 29) is the documented minimum for this library.
     minSdkVersion getExtOrDefault("minSdkVersion")
+    targetSdkVersion getExtOrDefault("targetSdkVersion")
   }
 
   compileOptions {
     sourceCompatibility JavaVersion.VERSION_17
     targetCompatibility JavaVersion.VERSION_17
   }
+
+  kotlinOptions {
+    jvmTarget = "17"
+  }
+
+  // This module ships no native (.so) binaries of its own, so there are no
+  // 16 KB page-size linker flags to set here.
+}
+
+repositories {
+  google()
+  mavenCentral()
 }
 
 dependencies {
   implementation "com.facebook.react:react-android"
+  implementation "androidx.appcompat:appcompat:1.7.0" // AppCompatDelegate.setApplicationLocales backport
+  implementation "androidx.core:core-ktx:1.13.1"
+
 }

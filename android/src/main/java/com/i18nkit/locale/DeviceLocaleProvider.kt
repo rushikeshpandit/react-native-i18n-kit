@@ -2,6 +2,8 @@ package com.i18nkit.locale
 
 import android.content.Context
 import android.icu.util.Calendar as IcuCalendar
+import android.icu.util.LocaleData
+import android.icu.util.ULocale
 import android.text.format.DateFormat.is24HourFormat
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.WritableArray
@@ -91,15 +93,27 @@ class DeviceLocaleProvider(private val context: Context) {
     fun uses24HourClock(): Boolean = is24HourFormat(context)
 
     /**
-     * Whether the device region conventionally uses the metric system.
-     * Android exposes no direct "measurement system" API (unlike iOS's
-     * `Locale.usesMetricSystem`), so this is derived from the country
-     * code against the small set of countries that officially use
-     * imperial/US customary units.
+     * Whether the device uses the metric system.
      *
-     * @return `false` for US, LR and MM; `true` otherwise.
+     * Uses ICU's measurement-system data for the primary locale, which also
+     * honours the `-u-ms-` extension Android 14+ adds to the configuration
+     * locale for the user's regional preference. A locale without a region
+     * falls back to the country: only US, LR and MM are treated as non-metric.
+     *
+     * @return `false` for the US customary system, `true` otherwise (SI, and
+     * the UK system, matching iOS `Locale.usesMetricSystem`'s notion of "not US").
      */
-    fun usesMetricSystem(): Boolean = getCountry().uppercase() !in IMPERIAL_COUNTRY_CODES
+    fun usesMetricSystem(): Boolean {
+        val primary = getLocales().first()
+        if (primary.country.isEmpty()) {
+            return getCountry().uppercase() !in IMPERIAL_COUNTRY_CODES
+        }
+        return try {
+            LocaleData.getMeasurementSystem(ULocale.forLocale(primary)) != LocaleData.MeasurementSystem.US
+        } catch (e: Exception) {
+            primary.country.uppercase() !in IMPERIAL_COUNTRY_CODES
+        }
+    }
 
     companion object {
         // United States, Liberia, and Myanmar are the only countries that

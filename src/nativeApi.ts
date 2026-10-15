@@ -217,6 +217,92 @@ export async function setAppLanguage(languageTag: string): Promise<boolean> {
 }
 
 /**
+ * Formats a relative time with the platform's own formatter. Used as the
+ * fallback when the JavaScript runtime has no `Intl.RelativeTimeFormat`
+ * (Hermes does not ship it).
+ *
+ * @param value - Finite number; negative means the past.
+ * @param unit - A singular unit: `"second"`, `"minute"`, `"hour"`, `"day"`,
+ * `"week"`, `"month"`, `"quarter"` or `"year"`.
+ * @param locale - BCP-47 locale tag, e.g. `"fr"`.
+ * @param numeric - `"auto"` for words like "tomorrow", `"always"` for numbers.
+ * @returns The formatted string.
+ * @throws {I18nKitError} `INVALID_ARGUMENT` when the platform returns an empty
+ * result (unsupported unit or value); otherwise the same errors as the other
+ * native calls.
+ */
+export function formatRelativeTimeNative(
+  value: number,
+  unit: string,
+  locale: string,
+  numeric: 'auto' | 'always'
+): string {
+  const result = guard((native) =>
+    native.formatRelativeTime(value, unit, locale, numeric)
+  );
+  if (!result) {
+    throw new I18nKitError(
+      'INVALID_ARGUMENT',
+      `The platform could not format a relative time of ${String(value)} ${unit}.`
+    );
+  }
+  return result;
+}
+
+/**
+ * Reads the locale the user saved in the app (see {@link saveLocale}).
+ *
+ * @returns The saved locale code, or `""` if none was saved.
+ * @throws {I18nKitError} On an unsupported platform, a missing native module,
+ * or a native failure.
+ */
+export function getSavedLocale(): string {
+  return guard((native) => native.getSavedLocale());
+}
+
+/**
+ * Saves the user's in-app locale choice (Android `SharedPreferences`, iOS
+ * `UserDefaults`) so it can be restored on the next launch.
+ *
+ * @param locale - Non-empty locale code such as `"fr"`.
+ * @throws {I18nKitError} `INVALID_LOCALE` when `locale` is empty,
+ * whitespace-only or not a string (nothing is saved); otherwise the same
+ * errors as the other native calls.
+ */
+export function saveLocale(locale: string): void {
+  if (isBlankString(locale)) {
+    throw new I18nKitError(
+      'INVALID_LOCALE',
+      'saveLocale() requires a non-empty locale code.'
+    );
+  }
+  const saved = guard((native) => native.saveLocale(locale));
+  if (!saved) {
+    throw new I18nKitError(
+      'NATIVE_CALL_FAILED',
+      'The native layer did not save the locale.'
+    );
+  }
+}
+
+/**
+ * Removes the saved locale so the app follows the device language again.
+ * Safe to call when nothing was saved.
+ *
+ * @throws {I18nKitError} On an unsupported platform, a missing native module,
+ * or a native failure.
+ */
+export function clearSavedLocale(): void {
+  const cleared = guard((native) => native.clearSavedLocale());
+  if (!cleared) {
+    throw new I18nKitError(
+      'NATIVE_CALL_FAILED',
+      'The native layer did not clear the saved locale.'
+    );
+  }
+}
+
+/**
  * Reads the app-level language override set through {@link setAppLanguage}.
  *
  * @returns The BCP-47 tag of the override, or `""` if none was set.

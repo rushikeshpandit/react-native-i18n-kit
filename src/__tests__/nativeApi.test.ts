@@ -280,3 +280,140 @@ describe('nativeApi - negative scenarios', () => {
     });
   });
 });
+
+describe('nativeApi - saved locale', () => {
+  const { getSavedLocale, saveLocale, clearSavedLocale } =
+    require('../nativeApi') as typeof import('../nativeApi');
+
+  it('getSavedLocale returns "" when nothing was saved', () => {
+    expect(getSavedLocale()).toBe('');
+  });
+
+  it('getSavedLocale returns the native value', () => {
+    nativeMock.getSavedLocale.mockReturnValue('fr');
+    expect(getSavedLocale()).toBe('fr');
+  });
+
+  it('saveLocale forwards the locale to native', () => {
+    saveLocale('pt-BR');
+    expect(nativeMock.saveLocale).toHaveBeenCalledWith('pt-BR');
+  });
+
+  it('clearSavedLocale calls native', () => {
+    clearSavedLocale();
+    expect(nativeMock.clearSavedLocale).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    '',
+    '   ',
+    '\t',
+    undefined as unknown as string,
+    null as unknown as string,
+    7 as unknown as string,
+  ])('saveLocale(%p) throws INVALID_LOCALE without calling native', (input) => {
+    const error = catchError(() => saveLocale(input));
+    expect(error.code).toBe('INVALID_LOCALE');
+    expect(nativeMock.saveLocale).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['getSavedLocale', () => getSavedLocale(), nativeMock.getSavedLocale],
+    ['saveLocale', () => saveLocale('fr'), nativeMock.saveLocale],
+    ['clearSavedLocale', () => clearSavedLocale(), nativeMock.clearSavedLocale],
+  ] as [string, () => unknown, jest.Mock][])(
+    '%s wraps a native failure as NATIVE_CALL_FAILED',
+    (_name, call, mock) => {
+      const cause = new Error('storage down');
+      mock.mockImplementation(() => {
+        throw cause;
+      });
+      const error = catchError(call);
+      expect(error.code).toBe('NATIVE_CALL_FAILED');
+      expect(error.cause).toBe(cause);
+    }
+  );
+
+  it.each(['web', 'windows'])(
+    'saved-locale functions throw UNSUPPORTED_PLATFORM on %s',
+    (os) => {
+      jest.replaceProperty(Platform, 'OS', os as 'web');
+      expect(catchError(() => getSavedLocale()).code).toBe(
+        'UNSUPPORTED_PLATFORM'
+      );
+      expect(catchError(() => saveLocale('fr')).code).toBe(
+        'UNSUPPORTED_PLATFORM'
+      );
+      expect(catchError(() => clearSavedLocale()).code).toBe(
+        'UNSUPPORTED_PLATFORM'
+      );
+      expect(nativeMock.saveLocale).not.toHaveBeenCalled();
+      jest.restoreAllMocks();
+    }
+  );
+});
+
+describe('nativeApi - formatRelativeTimeNative', () => {
+  const { formatRelativeTimeNative } =
+    require('../nativeApi') as typeof import('../nativeApi');
+
+  it('forwards every argument to native and returns its text', () => {
+    nativeMock.formatRelativeTime.mockReturnValue('il y a 3 jours');
+    expect(formatRelativeTimeNative(-3, 'day', 'fr', 'always')).toBe(
+      'il y a 3 jours'
+    );
+    expect(nativeMock.formatRelativeTime).toHaveBeenCalledWith(
+      -3,
+      'day',
+      'fr',
+      'always'
+    );
+  });
+
+  it('throws INVALID_ARGUMENT when the platform returns an empty string', () => {
+    nativeMock.formatRelativeTime.mockReturnValue('');
+    expect(
+      catchError(() => formatRelativeTimeNative(1, 'day', 'en', 'auto')).code
+    ).toBe('INVALID_ARGUMENT');
+  });
+
+  it('wraps a native failure as NATIVE_CALL_FAILED', () => {
+    nativeMock.formatRelativeTime.mockImplementation(() => {
+      throw new Error('icu down');
+    });
+    expect(
+      catchError(() => formatRelativeTimeNative(1, 'day', 'en', 'auto')).code
+    ).toBe('NATIVE_CALL_FAILED');
+  });
+
+  it('throws UNSUPPORTED_PLATFORM on web without touching native', () => {
+    jest.replaceProperty(Platform, 'OS', 'web');
+    expect(
+      catchError(() => formatRelativeTimeNative(1, 'day', 'en', 'auto')).code
+    ).toBe('UNSUPPORTED_PLATFORM');
+    expect(nativeMock.formatRelativeTime).not.toHaveBeenCalled();
+    jest.restoreAllMocks();
+  });
+});
+
+describe('nativeApi - saved locale return values', () => {
+  const { saveLocale, clearSavedLocale } =
+    require('../nativeApi') as typeof import('../nativeApi');
+
+  it('saveLocale throws NATIVE_CALL_FAILED when native reports it did not save', () => {
+    nativeMock.saveLocale.mockReturnValue(false);
+    expect(catchError(() => saveLocale('fr')).code).toBe('NATIVE_CALL_FAILED');
+  });
+
+  it('clearSavedLocale throws NATIVE_CALL_FAILED when native reports it did not clear', () => {
+    nativeMock.clearSavedLocale.mockReturnValue(false);
+    expect(catchError(() => clearSavedLocale()).code).toBe(
+      'NATIVE_CALL_FAILED'
+    );
+  });
+
+  it('both succeed silently when native returns true', () => {
+    expect(() => saveLocale('fr')).not.toThrow();
+    expect(() => clearSavedLocale()).not.toThrow();
+  });
+});

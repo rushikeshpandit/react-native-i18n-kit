@@ -94,6 +94,45 @@ export interface Spec extends TurboModule {
    */
   getAppLanguage(): string;
 
+  // ---- Relative time fallback (Hermes has no Intl.RelativeTimeFormat) -----------
+  /**
+   * Formats a relative time with the platform's own formatter (Android ICU
+   * `RelativeDateTimeFormatter`, iOS `RelativeDateTimeFormatter`).
+   * @param value - Finite number; negative means the past. iOS rounds to a whole unit.
+   * @param unit - `"second"`, `"minute"`, `"hour"`, `"day"`, `"week"`, `"month"`, `"quarter"` or `"year"`.
+   * @param locale - BCP-47 locale tag, e.g. `"fr"`.
+   * @param numeric - `"always"` for "in 1 day" or `"auto"` for "tomorrow" when the locale has such a word.
+   * @returns The formatted string; `""` if the platform cannot format it.
+   */
+  formatRelativeTime(
+    value: number,
+    unit: string,
+    locale: string,
+    numeric: string
+  ): string;
+
+  // ---- Saved in-app locale (survives app restarts) ------------------------------
+  /**
+   * Reads the locale the user picked in the app and saved earlier.
+   * @returns The saved locale code, or `""` if none was saved.
+   */
+  getSavedLocale(): string;
+  /**
+   * Saves the user's in-app locale choice (Android `SharedPreferences`,
+   * iOS `UserDefaults`) so it can be restored on the next launch.
+   * Returns a boolean (not `void`) on purpose: TurboModule `void` methods run
+   * asynchronously, so a following `getSavedLocale()` could miss the write.
+   * @param locale - Non-empty locale code, e.g. `"fr"`.
+   * @returns `true` once saved; `false` if `locale` is blank (nothing written).
+   */
+  saveLocale(locale: string): boolean;
+  /**
+   * Removes the saved locale so the app follows the device language again.
+   * Synchronous for the same reason as `saveLocale`.
+   * @returns `true` once removed (also when nothing was saved).
+   */
+  clearSavedLocale(): boolean;
+
   // ---- Event emitter plumbing (NativeEventEmitter requires these two) -----------
   /**
    * Called by `NativeEventEmitter` when a JS listener attaches (iOS only; a

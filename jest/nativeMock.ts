@@ -32,6 +32,10 @@ export const nativeMock = {
   isRTLForLanguage: jest.fn(),
   setAppLanguage: jest.fn(),
   getAppLanguage: jest.fn(),
+  formatRelativeTime: jest.fn(),
+  getSavedLocale: jest.fn(),
+  saveLocale: jest.fn(),
+  clearSavedLocale: jest.fn(),
   addListener: jest.fn(),
   removeListeners: jest.fn(),
   getConstants: jest.fn(),
@@ -61,4 +65,8 @@ export function resetNativeMock(): void {
   );
   nativeMock.setAppLanguage.mockResolvedValue(true);
   nativeMock.getAppLanguage.mockReturnValue('');
+  nativeMock.getSavedLocale.mockReturnValue('');
+  nativeMock.saveLocale.mockReturnValue(true);
+  nativeMock.clearSavedLocale.mockReturnValue(true);
+  nativeMock.formatRelativeTime.mockReturnValue('native relative time');
 }

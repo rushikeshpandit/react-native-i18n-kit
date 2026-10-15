@@ -9,6 +9,8 @@ import com.facebook.react.modules.core.DeviceEventManagerModule
 import com.i18nkit.locale.AppLanguageManager
 import com.i18nkit.locale.DeviceLocaleProvider
 import com.i18nkit.locale.LocaleInfoMapper
+import com.i18nkit.locale.RelativeTimeProvider
+import com.i18nkit.locale.SavedLocaleStore
 import com.i18nkit.receiver.LocaleChangeReceiver
 import java.util.Locale
 
@@ -24,6 +26,8 @@ class I18nKitModule(reactContext: ReactApplicationContext) :
 
     private val deviceLocaleProvider = DeviceLocaleProvider(reactContext)
     private val appLanguageManager = AppLanguageManager()
+    private val savedLocaleStore = SavedLocaleStore(reactContext)
+    private val relativeTimeProvider = RelativeTimeProvider()
 
     private val localeChangeReceiver = LocaleChangeReceiver(onLocaleChanged = ::emitLocaleChanged)
 
@@ -154,6 +158,56 @@ class I18nKitModule(reactContext: ReactApplicationContext) :
      * @throws RuntimeException if the underlying native read fails.
      */
     override fun getAppLanguage(): String = runCatchingNative { appLanguageManager.getAppLanguage() }
+
+    // ---- Relative time ------------------------------------------------------------
+
+    /**
+     * Formats a relative time with ICU.
+     *
+     * @param value the offset; negative means the past.
+     * @param unit "second", "minute", "hour", "day", "week", "month", "quarter" or "year".
+     * @param locale a BCP-47 locale tag.
+     * @param numeric "auto" or "always".
+     * @return the formatted string.
+     * @throws RuntimeException (wrapping [IllegalArgumentException]) for an unsupported unit.
+     */
+    override fun formatRelativeTime(value: Double, unit: String, locale: String, numeric: String): String =
+        runCatchingNative { relativeTimeProvider.format(value, unit, locale, numeric) }
+
+    // ---- Saved in-app locale ------------------------------------------------------
+
+    /**
+     * Reads the locale saved with [saveLocale].
+     *
+     * @return the saved locale code, or "" if none was saved.
+     * @throws RuntimeException if the underlying native read fails.
+     */
+    override fun getSavedLocale(): String = runCatchingNative { savedLocaleStore.get() }
+
+    /**
+     * Saves the user's in-app locale choice so it survives app restarts.
+     *
+     * Synchronous (returns a value) so a following [getSavedLocale] sees the write.
+     *
+     * @param locale a non-blank locale code such as "fr".
+     * @return `true` once saved.
+     * @throws RuntimeException (wrapping [IllegalArgumentException]) if [locale] is blank.
+     */
+    override fun saveLocale(locale: String): Boolean = runCatchingNative {
+        savedLocaleStore.save(locale)
+        true
+    }
+
+    /**
+     * Removes the saved locale so the app follows the device language again.
+     *
+     * @return `true` once removed (also when nothing was saved).
+     * @throws RuntimeException if the underlying native write fails.
+     */
+    override fun clearSavedLocale(): Boolean = runCatchingNative {
+        savedLocaleStore.clear()
+        true
+    }
 
     // ---- Event emitter plumbing ---------------------------------------------------
     // NativeEventEmitter only forwards addListener/removeListeners to native on

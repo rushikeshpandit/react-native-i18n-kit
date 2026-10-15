@@ -8,6 +8,8 @@ public final class I18nKitImpl: NSObject {
 
     private let deviceLocaleProvider = DeviceLocaleProvider()
     private let appLanguageManager = AppLanguageManager()
+    private let savedLocaleStore = SavedLocaleStore()
+    private let relativeTimeProvider = RelativeTimeProvider()
 
     // MARK: - Device locale detection
 
@@ -84,6 +86,45 @@ public final class I18nKitImpl: NSObject {
     /// - Returns: Always `false` on iOS (a restart is required) — see `AppLanguageManager`.
     public func setAppLanguage(_ languageTag: String) -> Bool {
         appLanguageManager.setAppLanguage(languageTag)
+    }
+
+    // MARK: - Relative time
+
+    /// Formats a relative time with Foundation's `RelativeDateTimeFormatter`.
+    ///
+    /// - Parameters:
+    ///   - value: The offset; negative means the past (rounded to a whole unit).
+    ///   - unit: `"second"`, `"minute"`, `"hour"`, `"day"`, `"week"`, `"month"`, `"quarter"` or `"year"`.
+    ///   - locale: A BCP-47 locale tag.
+    ///   - numeric: `"auto"` or `"always"`.
+    /// - Returns: The formatted string, or `""` if it cannot be formatted.
+    public func formatRelativeTime(_ value: Double, unit: String, locale: String, numeric: String) -> String {
+        relativeTimeProvider.format(value: value, unit: unit, localeTag: locale, numeric: numeric)
+    }
+
+    // MARK: - Saved in-app locale
+
+    /// Reads the locale the user saved in the app.
+    ///
+    /// - Returns: The saved locale code, or `""` if none was saved.
+    public func getSavedLocale() -> String {
+        savedLocaleStore.get()
+    }
+
+    /// Saves the user's in-app locale choice for the next launch.
+    ///
+    /// - Parameter locale: A non-blank locale code such as `"fr"`.
+    /// - Returns: `true` if saved, `false` if `locale` is blank.
+    public func saveLocale(_ locale: String) -> Bool {
+        savedLocaleStore.save(locale)
+    }
+
+    /// Removes the saved locale.
+    ///
+    /// - Returns: Always `true` (also when nothing was saved).
+    public func clearSavedLocale() -> Bool {
+        savedLocaleStore.clear()
+        return true
     }
 
     /// Reads the persisted app-language override.

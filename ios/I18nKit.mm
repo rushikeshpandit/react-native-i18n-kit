@@ -148,6 +148,49 @@ RCT_EXPORT_MODULE()
   resolve(@([_impl setAppLanguage:languageTag]));
 }
 
+// MARK: - Relative time
+
+/**
+ * @param value The offset; negative means the past.
+ * @param unit "second", "minute", "hour", "day", "week", "month", "quarter" or "year".
+ * @param locale A BCP-47 locale tag.
+ * @param numeric "auto" or "always".
+ * @return The formatted string, or an empty string if it cannot be formatted.
+ */
+- (NSString *)formatRelativeTime:(double)value
+                            unit:(NSString *)unit
+                          locale:(NSString *)locale
+                         numeric:(NSString *)numeric
+{
+  return [_impl formatRelativeTime:value unit:unit locale:locale numeric:numeric];
+}
+
+// MARK: - Saved in-app locale
+
+/** @return The locale saved with saveLocale:, or an empty string. */
+- (NSString *)getSavedLocale
+{
+  return [_impl getSavedLocale];
+}
+
+/**
+ * Saves the user's in-app locale choice for the next launch. Synchronous (returns a value)
+ * so a following getSavedLocale sees the write.
+ *
+ * @param locale A non-blank locale code such as "fr".
+ * @return @YES once saved, @NO if the locale is blank (nothing is written).
+ */
+- (NSNumber *)saveLocale:(NSString *)locale
+{
+  return @([_impl saveLocale:locale]);
+}
+
+/** @return @YES once the saved locale is removed (also when nothing was saved). */
+- (NSNumber *)clearSavedLocale
+{
+  return @([_impl clearSavedLocale]);
+}
+
 /** @return The persisted override tag, or an empty string. */
 - (NSString *)getAppLanguage
 {

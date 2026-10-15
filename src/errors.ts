@@ -9,7 +9,9 @@ export type I18nKitErrorCode =
   | 'MISSING_TRANSLATION_TREE'
   | 'TRANSLATION_KEY_NOT_FOUND'
   | 'PROVIDER_NOT_FOUND'
-  | 'NATIVE_CALL_FAILED';
+  | 'NATIVE_CALL_FAILED'
+  | 'INVALID_ARGUMENT'
+  | 'INTL_UNAVAILABLE';
 
 /**
  * Single error type for the whole library. Native-side failures

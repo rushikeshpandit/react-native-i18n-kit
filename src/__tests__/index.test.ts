@@ -16,6 +16,13 @@ describe('public API surface', () => {
     'isRTLForLanguage',
     'setAppLanguage',
     'getAppLanguage',
+    'getSavedLocale',
+    'saveLocale',
+    'clearSavedLocale',
+    'createFormatters',
+    'matchLocale',
+    'matchFirstLocale',
+    'normalizeTag',
     'I18nKitError',
   ])('exports %s', (name) => {
     expect(typeof (lib as Record<string, unknown>)[name]).toBe('function');

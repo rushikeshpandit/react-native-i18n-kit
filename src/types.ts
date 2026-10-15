@@ -3,6 +3,7 @@ import type {
   NativeNumberFormatSettings,
 } from './NativeI18nKit';
 import type React from 'react';
+import type { Formatters } from './formatters';
 
 /** Re-exported so consumers never need to import from the native spec file directly. */
 export type LocaleInfo = NativeLocaleInfo;
@@ -71,16 +72,36 @@ export interface LocalizationProviderProps {
    * which this library cannot do for you — see README "Platform limitations".
    */
   manageRTL?: boolean;
+  /**
+   * When true (default), the user's choice made through `setLocale` is saved
+   * natively (Android `SharedPreferences`, iOS `UserDefaults`) and restored on
+   * the next launch, taking priority over device-language detection. Use
+   * `resetLocale()` to forget it. Saving failures are never fatal.
+   */
+  persistLocale?: boolean;
+  /**
+   * Called when a locale change flips the layout direction. React Native only
+   * applies the new direction after a reload, so this is the place to ask the
+   * user to restart (or to trigger your own restart helper).
+   *
+   * @param isRTL - The direction that will apply after the reload.
+   */
+  onRTLReloadRequired?: (isRTL: boolean) => void;
   children: React.ReactNode;
 }
 
-export interface UseTranslationResult {
+export interface UseTranslationResult extends Formatters {
   /** Translate a key, with optional interpolation / pluralization. */
   t: TFunction;
   /** Currently active locale code. */
   locale: string;
   /** Switches the active locale. Resolves once native RTL state (if any) settles. */
   setLocale: (locale: string) => Promise<void>;
+  /**
+   * Forgets the saved choice and returns to the device language (or
+   * `defaultLocale` when `autoDetectDeviceLocale` is off).
+   */
+  resetLocale: () => Promise<void>;
   /** All locale codes available in the `translations` map you supplied. */
   availableLocales: string[];
   /** Whether the active locale renders right-to-left. */

@@ -15,7 +15,15 @@ export {
   isRTLForLanguage,
   setAppLanguage,
   getAppLanguage,
+  getSavedLocale,
+  saveLocale,
+  clearSavedLocale,
 } from './nativeApi';
+
+export { createFormatters } from './defaultFormatters';
+export type { Formatters, FormattersConfig } from './formatters';
+
+export { matchLocale, matchFirstLocale, normalizeTag } from './localeMatcher';
 
 export { I18nKitError } from './errors';
 export type { I18nKitErrorCode } from './errors';

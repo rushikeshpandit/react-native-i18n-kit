@@ -11,12 +11,12 @@ import type { UseTranslationResult } from '../types';
  *         onPress={() => setLocale(locale === 'en' ? 'fr' : 'en')} />
  *
  * @returns `t` (translate function), `locale` (active code), `setLocale`
- * (async switcher), `availableLocales` (sorted codes) and `isRTL`.
+ * (async switcher), `resetLocale` (forget the saved choice), `availableLocales`
+ * (sorted codes), `isRTL`, and the locale-bound formatters `formatNumber`,
+ * `formatCurrency`, `formatPercent`, `formatDate` and `formatRelativeTime`.
  * @throws {I18nKitError} `PROVIDER_NOT_FOUND` when used outside a
  * `<LocalizationProvider>`.
  */
 export function useTranslation(): UseTranslationResult {
-  const { t, locale, setLocale, availableLocales, isRTL } =
-    useLocalizationContext();
-  return { t, locale, setLocale, availableLocales, isRTL };
+  return useLocalizationContext();
 }

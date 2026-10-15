@@ -9,28 +9,26 @@ import React, {
 } from 'react';
 import { I18nManager, NativeEventEmitter } from 'react-native';
 import NativeI18nKit from '../NativeI18nKit';
-import { getDeviceLocales, isRTLForLanguage } from '../nativeApi';
+import {
+  clearSavedLocale,
+  getDeviceLocales,
+  getSavedLocale,
+  isRTLForLanguage,
+  saveLocale,
+} from '../nativeApi';
+import { createFormatters } from '../defaultFormatters';
+import { matchFirstLocale, matchLocale } from '../localeMatcher';
 import { listAvailableLocales, translate } from '../translator';
 import { I18nKitError } from '../errors';
 import type {
   LocalizationProviderProps,
   TFunction,
   TranslateOptions,
+  UseTranslationResult,
 } from '../types';
 
 /** Shape of the value shared through the localization React context. */
-interface LocalizationContextValue {
-  /** Currently active locale code. */
-  locale: string;
-  /** Switches the active locale (see `useTranslation`). */
-  setLocale: (locale: string) => Promise<void>;
-  /** Sorted locale codes present in the `translations` prop. */
-  availableLocales: string[];
-  /** Whether the active locale is written right-to-left. */
-  isRTL: boolean;
-  /** Translate function bound to the active locale. */
-  t: TFunction;
-}
+type LocalizationContextValue = UseTranslationResult;
 
 const LocalizationContext = createContext<LocalizationContextValue | null>(
   null
@@ -38,38 +36,68 @@ const LocalizationContext = createContext<LocalizationContextValue | null>(
 LocalizationContext.displayName = 'I18nKitLocalizationContext';
 
 /**
- * Picks the best starting locale: the first device-preferred locale that
- * exists in `availableLocales`, falling back to `defaultLocale` when the
- * user's device languages aren't among the ones the app ships.
+ * Picks the locale shipped in `availableLocales` that best matches the
+ * device's language list.
  *
  * @param availableLocales - Locale codes the app ships translations for.
- * @param defaultLocale - Locale to use when no device locale matches or the
- * native module cannot be read.
- * @returns A locale code (an exact tag such as `"pt-BR"` is preferred over
- * the bare language such as `"pt"`).
+ * @returns The matching shipped locale (case-insensitive, with script/region
+ * fallback such as `zh-Hans-CN` → `zh-CN` → `zh`), or `undefined` when none
+ * matches or the native module cannot be read.
+ */
+function detectDeviceLocale(availableLocales: string[]): string | undefined {
+  try {
+    const tags = getDeviceLocales().flatMap((device) => [
+      device.languageTag,
+      device.languageCode,
+    ]);
+    return matchFirstLocale(tags, availableLocales);
+  } catch {
+    // Native module unavailable (e.g. mid-development, or an unsupported
+    // platform during tests) — silently fall through rather than crashing
+    // app bootstrap over a non-critical feature.
+    return undefined;
+  }
+}
+
+/**
+ * Reads the locale the user saved earlier and resolves it against the shipped
+ * locales.
+ *
+ * @param availableLocales - Locale codes the app ships translations for.
+ * @returns The matching shipped locale, or `undefined` when nothing was saved,
+ * the saved locale is no longer shipped, or the native read fails.
+ */
+function readSavedLocale(availableLocales: string[]): string | undefined {
+  try {
+    const saved = getSavedLocale();
+    return saved ? matchLocale(saved, availableLocales) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Picks the starting locale. Priority: the user's saved choice, then the
+ * device language (when `autoDetect`), then `defaultLocale`.
+ *
+ * @param availableLocales - Locale codes the app ships translations for.
+ * @param defaultLocale - Locale used when nothing else matches.
+ * @param autoDetect - Whether to consult the device language.
+ * @param persist - Whether to consult the saved choice.
+ * @returns A locale code.
  */
 function resolveInitialLocale(
   availableLocales: string[],
-  defaultLocale: string
+  defaultLocale: string,
+  autoDetect: boolean,
+  persist: boolean
 ): string {
-  try {
-    const deviceLocales = getDeviceLocales();
-    const match = deviceLocales.find(
-      (candidate) =>
-        availableLocales.includes(candidate.languageTag) ||
-        availableLocales.includes(candidate.languageCode)
-    );
-    if (match) {
-      return availableLocales.includes(match.languageTag)
-        ? match.languageTag
-        : match.languageCode;
-    }
-  } catch {
-    // Native module unavailable (e.g. mid-development, or an unsupported
-    // platform during tests) — silently fall through to defaultLocale
-    // rather than crashing app bootstrap over a non-critical feature.
-  }
-  return defaultLocale;
+  const saved = persist ? readSavedLocale(availableLocales) : undefined;
+  if (saved) return saved;
+  const detected = autoDetect
+    ? detectDeviceLocale(availableLocales)
+    : undefined;
+  return detected ?? defaultLocale;
 }
 
 /**
@@ -78,7 +106,8 @@ function resolveInitialLocale(
  *
  * @param props - See {@link LocalizationProviderProps}: `translations` and
  * `defaultLocale` are required; `fallbackLocale`, `autoDetectDeviceLocale`
- * (default `true`) and `manageRTL` (default `true`) are optional.
+ * (default `true`), `manageRTL` (default `true`), `persistLocale` (default
+ * `true`) and `onRTLReloadRequired` are optional.
  * @returns A context provider element wrapping `children`.
  */
 export function LocalizationProvider({
@@ -87,6 +116,8 @@ export function LocalizationProvider({
   fallbackLocale,
   autoDetectDeviceLocale = true,
   manageRTL = true,
+  persistLocale = true,
+  onRTLReloadRequired,
   children,
 }: LocalizationProviderProps): React.ReactElement {
   // Sorted locale codes of the `translations` prop; recomputed only when it changes.
@@ -103,16 +134,24 @@ export function LocalizationProvider({
   }
 
   const [locale, setLocaleState] = useState<string>(() =>
-    autoDetectDeviceLocale
-      ? resolveInitialLocale(availableLocales, defaultLocale)
-      : defaultLocale
+    resolveInitialLocale(
+      availableLocales,
+      defaultLocale,
+      autoDetectDeviceLocale,
+      persistLocale
+    )
   );
 
   const warnedKeysRef = useRef<Set<string>>(new Set());
 
+  // Latest RTL callback, read at call time so changing it never re-creates setLocale.
+  const onRTLReloadRequiredRef = useRef(onRTLReloadRequired);
+  onRTLReloadRequiredRef.current = onRTLReloadRequired;
+
   /**
-   * Aligns `I18nManager` with the writing direction of `nextLocale`. Never
-   * throws: native failures are logged in dev and otherwise ignored.
+   * Aligns `I18nManager` with the writing direction of `nextLocale` and
+   * reports a required reload. Never throws: native failures are logged in
+   * dev and otherwise ignored.
    *
    * @param nextLocale - The locale about to become active.
    */
@@ -131,6 +170,16 @@ export function LocalizationProvider({
                 'JS bundle reload for RTL layout changes to take visual effect — prompt the ' +
                 'user to restart the app (see README "Platform limitations").'
             );
+          }
+          try {
+            onRTLReloadRequiredRef.current?.(shouldBeRTL);
+          } catch (callbackError) {
+            if (__DEV__) {
+              console.warn(
+                '[react-native-i18n-kit] onRTLReloadRequired threw',
+                callbackError
+              );
+            }
           }
         }
       } catch (error) {
@@ -155,10 +204,13 @@ export function LocalizationProvider({
   }, []);
 
   /**
-   * Switches the active locale and updates RTL state.
+   * Switches the active locale, updates RTL state and (unless disabled) saves
+   * the choice natively.
    *
-   * @param next - Locale code to activate, e.g. `"fr"`. It does not need to
-   * exist in `translations` (lookups then use the fallback locale).
+   * @param next - Locale code to activate, e.g. `"fr"`. Matching is
+   * case-insensitive and tolerant of script/region (`"FR"` → `"fr"`,
+   * `"zh-Hans-CN"` → `"zh-CN"`); an unshipped locale is accepted as written
+   * (lookups then use the fallback locale).
    * @returns A promise that resolves once the locale state is updated.
    * @throws {I18nKitError} `INVALID_LOCALE` (rejection) when `next` is empty,
    * whitespace-only or not a string; the active locale is left unchanged.
@@ -171,17 +223,69 @@ export function LocalizationProvider({
           'setLocale() requires a non-empty locale code.'
         );
       }
-      if (!availableLocales.includes(next) && __DEV__) {
+      const requested = next.trim();
+      const resolved = matchLocale(requested, availableLocales) ?? requested;
+      if (!availableLocales.includes(resolved) && __DEV__) {
         console.warn(
-          `[react-native-i18n-kit] setLocale("${next}") — this locale has no entry in ` +
+          `[react-native-i18n-kit] setLocale("${requested}") — this locale has no entry in ` +
             `"translations". Lookups will fall back to "${fallbackLocale ?? defaultLocale}".`
         );
       }
-      applyRTLIfNeeded(next);
-      setLocaleState(next);
+      applyRTLIfNeeded(resolved);
+      setLocaleState(resolved);
+      if (persistLocale) {
+        try {
+          saveLocale(resolved);
+        } catch (error) {
+          if (__DEV__) {
+            console.warn(
+              '[react-native-i18n-kit] Could not save the locale choice',
+              error
+            );
+          }
+        }
+      }
     },
-    [availableLocales, applyRTLIfNeeded, defaultLocale, fallbackLocale]
+    [
+      availableLocales,
+      applyRTLIfNeeded,
+      defaultLocale,
+      fallbackLocale,
+      persistLocale,
+    ]
   );
+
+  /**
+   * Forgets the saved locale choice and returns to the device language (or to
+   * `defaultLocale` when `autoDetectDeviceLocale` is off).
+   *
+   * @returns A promise that resolves once the locale state is updated.
+   */
+  const resetLocale = useCallback(async () => {
+    try {
+      clearSavedLocale();
+    } catch (error) {
+      if (__DEV__) {
+        console.warn(
+          '[react-native-i18n-kit] Could not clear the saved locale',
+          error
+        );
+      }
+    }
+    const next = resolveInitialLocale(
+      availableLocales,
+      defaultLocale,
+      autoDetectDeviceLocale,
+      false
+    );
+    applyRTLIfNeeded(next);
+    setLocaleState(next);
+  }, [
+    availableLocales,
+    defaultLocale,
+    autoDetectDeviceLocale,
+    applyRTLIfNeeded,
+  ]);
 
   /**
    * Logs a missing-translation warning once per locale/key pair (dev only).
@@ -228,10 +332,23 @@ export function LocalizationProvider({
     }
   }, [locale]);
 
+  // Number/currency/percent/date/relative-time formatters for the active locale.
+  // Times follow the device's 12/24-hour setting; relative times fall back to the
+  // platform formatter on runtimes without Intl.RelativeTimeFormat (Hermes).
+  const formatters = useMemo(() => createFormatters(locale), [locale]);
+
   // Context value is memoized so consumers re-render only when something they read changes.
   const value = useMemo<LocalizationContextValue>(
-    () => ({ locale, setLocale, availableLocales, isRTL, t }),
-    [locale, setLocale, availableLocales, isRTL, t]
+    () => ({
+      locale,
+      setLocale,
+      resetLocale,
+      availableLocales,
+      isRTL,
+      t,
+      ...formatters,
+    }),
+    [locale, setLocale, resetLocale, availableLocales, isRTL, t, formatters]
   );
 
   return (

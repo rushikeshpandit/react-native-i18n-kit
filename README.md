@@ -23,6 +23,8 @@ TurboModule + Fabric ready. New Architecture first. 16 KB page-size compliant. N
    - [`useTranslation()`](#usetranslation)
    - [`useDeviceLocale()`](#usedevicelocale)
    - [Standalone functions](#standalone-functions)
+   - [Formatting](#formatting)
+   - [Locale matching](#locale-matching)
    - [Translation file format](#translation-file-format)
    - [Types](#types)
    - [`I18nKitError` and error codes](#i18nkiterror-and-error-codes)
@@ -56,6 +58,9 @@ Most React Native localization libraries are thin JS wrappers around platform-de
 | 🪞 **RTL-aware** | `isRTL` per locale, with optional automatic `I18nManager.forceRTL` management |
 | 📡 **Live system-locale events** | `useDeviceLocale()` re-reads automatically when the user changes the OS language mid-session |
 | 🧵 **TypeScript strict mode** | Every public API is fully typed, including translation trees and plural maps |
+| 💾 **Remembers the user's language** | `setLocale` is saved natively (SharedPreferences / UserDefaults) and restored on the next launch |
+| 🎯 **Smart locale matching** | Case-insensitive, with script/region fallback: `zh-Hans-CN` → `zh-CN` → `zh`, `pt` → `pt-BR`, legacy `iw` → `he` |
+| 🔢 **Locale-aware formatting** | `formatNumber`, `formatCurrency`, `formatPercent`, `formatDate`, `formatRelativeTime` — follows the active language and the device's 12/24-hour setting |
 | 🛡️ **Typed error handling** | One `I18nKitError` class with stable `.code` values instead of opaque native exceptions |
 
 ## Platform support
@@ -253,6 +258,46 @@ function Screen() {
 
 `isRTL` updates immediately. The native layout direction only changes after a reload — see [Platform limitations](#platform-limitations).
 
+### Remembering the user's language
+
+By default the choice made with `setLocale` is saved on the device and restored on the next launch (it takes priority over the device language). Use `resetLocale()` to forget it and follow the device language again:
+
+```tsx
+const { setLocale, resetLocale } = useTranslation();
+
+await setLocale('fr');     // saved → the app starts in French next time
+await resetLocale();       // forgets the choice → device language (or defaultLocale)
+```
+
+Pass `persistLocale={false}` to the provider to turn this off. A saved locale that is no longer shipped is ignored. Saving and restoring never throw: a storage failure just means the choice isn't remembered.
+
+### Asking the user to restart after an RTL change
+
+```tsx
+<LocalizationProvider
+  translations={TRANSLATIONS}
+  defaultLocale="en"
+  onRTLReloadRequired={(isRTL) =>
+    Alert.alert('Restart required', 'Reopen the app to apply the new layout direction.')
+  }
+>
+```
+
+The callback fires only when a locale change (including the restored one at start-up) flips the layout direction.
+
+### Formatting numbers, currency, dates and relative time
+
+```tsx
+const { formatNumber, formatCurrency, formatPercent, formatDate, formatRelativeTime } = useTranslation();
+
+formatNumber(1234567.891);                    // en: "1,234,567.891"  fr: "1 234 567,891"
+formatCurrency(1234.5, 'USD');                // en: "$1,234.50"
+formatPercent(0.256, { maximumFractionDigits: 1 }); // "25.6%"
+formatDate(new Date(), { dateStyle: 'long' });
+formatDate(new Date(), { hour: 'numeric', minute: '2-digit' }); // follows the device 12/24-hour setting
+formatRelativeTime(-3, 'day', { numeric: 'auto' });  // "3 days ago"
+```
+
 ### Reading device settings
 
 ```tsx
@@ -323,6 +368,8 @@ Mount once near the root. Makes `useTranslation()` and `useDeviceLocale()` avail
 | `fallbackLocale` | `string` | ❌ | Locale consulted when a key is missing in the active locale. |
 | `autoDetectDeviceLocale` | `boolean` (default `true`) | ❌ | Start from the first device-preferred language you ship (exact tag such as `pt-BR` preferred over `pt`). |
 | `manageRTL` | `boolean` (default `true`) | ❌ | Call `I18nManager.forceRTL` when the direction changes. |
+| `persistLocale` | `boolean` (default `true`) | ❌ | Save the `setLocale` choice natively and restore it on the next launch (priority: saved choice → device language → `defaultLocale`). |
+| `onRTLReloadRequired` | `(isRTL: boolean) => void` | ❌ | Called when a locale change flips the layout direction, so you can ask the user to restart. |
 | `children` | `ReactNode` | ✅ | Your app. |
 
 **Returns:** a React element. **Never throws** during start-up: if the native module is unavailable it falls back to `defaultLocale`.
@@ -337,7 +384,9 @@ const { t, locale, setLocale, availableLocales, isRTL } = useTranslation();
 |---|---|---|
 | `t` | `(key: string, options?: TranslateOptions) => string` | Resolves a key with interpolation and pluralization. Stable between renders until `translations`, locale or `fallbackLocale` change. |
 | `locale` | `string` | Active locale code. |
-| `setLocale` | `(locale: string) => Promise<void>` | Switches the active locale and updates RTL state. |
+| `setLocale` | `(locale: string) => Promise<void>` | Switches the active locale (matched case-insensitively with script/region fallback), updates RTL state and saves the choice. |
+| `resetLocale` | `() => Promise<void>` | Forgets the saved choice and returns to the device language (or `defaultLocale`). |
+| `formatNumber`, `formatCurrency`, `formatPercent`, `formatDate`, `formatRelativeTime` | see [Formatting](#formatting) | Formatters bound to the active locale. |
 | `availableLocales` | `string[]` | Sorted locale codes present in `translations`. |
 | `isRTL` | `boolean` | Whether the active locale is right-to-left. |
 
@@ -406,9 +455,43 @@ import {
 | `isRTLForLanguage(code)` | `code: string` — BCP-47 language code | `boolean` | Writing direction for **any** language, not just the active one. |
 | `setAppLanguage(tag)` | `tag: string` — BCP-47 tag | `Promise<boolean>` | App-only language override. See [below](#app-level-language-override). |
 | `getAppLanguage()` | — | `string` | Currently applied override, or `""`. |
+| `getSavedLocale()` | — | `string` | Locale the user saved with `setLocale`/`saveLocale`, or `""`. |
+| `saveLocale(locale)` | `locale: string` | `void` | Saves a locale natively (SharedPreferences / UserDefaults). Synchronous: `getSavedLocale()` sees it immediately. Blank values throw `INVALID_LOCALE`. |
+| `clearSavedLocale()` | — | `void` | Removes the saved locale. |
 
 **Throws / rejects** (all functions): `UNSUPPORTED_PLATFORM` (not iOS/Android), `NATIVE_MODULE_UNAVAILABLE` (not linked), `NATIVE_CALL_FAILED` (native failure; original error in `.cause`).
-Additionally, `isRTLForLanguage` and `setAppLanguage` reject empty, whitespace-only and non-string arguments with `INVALID_LOCALE` **before** calling native code.
+Additionally, `isRTLForLanguage`, `setAppLanguage` and `saveLocale` reject empty, whitespace-only and non-string arguments with `INVALID_LOCALE` **before** calling native code.
+
+### Formatting
+
+`useTranslation()` exposes formatters bound to the active locale. Outside components use `createFormatters(locale, config?)`, which returns the same five functions.
+
+| Function | Parameters | Returns |
+|---|---|---|
+| `formatNumber(value, options?)` | finite `number`, `Intl.NumberFormatOptions` | `"1,234.5"` |
+| `formatCurrency(value, currency, options?)` | finite `number`, ISO 4217 code (`"USD"`), options | `"$1,234.50"` |
+| `formatPercent(value, options?)` | finite fraction (`0.256` = 25.6%), options | `"26%"` |
+| `formatDate(value, options?)` | `Date` or millisecond timestamp, `Intl.DateTimeFormatOptions` (default: medium date) | `"Jan 15, 2024"` |
+| `formatRelativeTime(value, unit, options?)` | finite `number` (negative = past), unit (`"day"`, `"hour"`, …), `Intl.RelativeTimeFormatOptions` | `"3 days ago"` |
+
+- Times follow the device's 12/24-hour setting unless you pass `hour12` or `hourCycle`.
+- Implemented with `Intl`. **Hermes does not ship `Intl.RelativeTimeFormat`**, so `formatRelativeTime` automatically uses the platform's own formatter (Android ICU `RelativeDateTimeFormatter`, iOS `RelativeDateTimeFormatter`) when `Intl` has none. The native path rounds fractional values to whole units on iOS. `createFormatters` is wired this way by default; pass `relativeTimeFallback` / `uses24HourClock` in its config to override.
+- If `Intl` itself is missing, the functions throw `INTL_UNAVAILABLE`.
+- Invalid input (NaN, Infinity, strings, invalid dates, bad currency codes or units) throws `INVALID_ARGUMENT` instead of printing `NaN`.
+- An unknown locale tag falls back to the runtime default locale.
+
+### Locale matching
+
+The same matcher is used for the device language, the saved choice and `setLocale`. It is case-insensitive, treats `_` as `-`, and tries the full tag, then language-script, language-region and language; finally a sibling region of the same language. Legacy codes `iw`/`in`/`ji` map to `he`/`id`/`yi`.
+
+| Requested | Shipped | Result |
+|---|---|---|
+| `zh-Hans-CN` | `zh-CN` | `zh-CN` |
+| `FR-ca` | `fr` | `fr` |
+| `pt` | `pt-BR`, `pt-PT` | `pt-BR` (first in sorted order) |
+| `de` | `en`, `fr` | no match → `defaultLocale` |
+
+The helpers are exported if you need them: `matchLocale(requested, available)`, `matchFirstLocale(requestedList, available)` and `normalizeTag(tag)`.
 
 ### Translation file format
 
@@ -459,6 +542,8 @@ Every error thrown or rejected by this library is an `I18nKitError` (`instanceof
 | `TRANSLATION_KEY_NOT_FOUND` | `t()` was called with an empty key. (Unknown non-empty keys do **not** throw; they return the key.) |
 | `PROVIDER_NOT_FOUND` | A hook was used outside `<LocalizationProvider>`. |
 | `NATIVE_CALL_FAILED` | An unexpected native-side exception occurred. |
+| `INVALID_ARGUMENT` | A formatter received an invalid value, currency code, unit, date or options. |
+| `INTL_UNAVAILABLE` | A formatter was called in a JavaScript runtime without `Intl`. |
 | `MISSING_TRANSLATION_TREE` | Reserved; not currently thrown. |
 
 ---
@@ -496,6 +581,9 @@ const fakeI18nKit = {
   isRTLForLanguage: (code: string) => ['ar', 'he'].includes(code),
   setAppLanguage: async () => true,
   getAppLanguage: () => '',
+  getSavedLocale: () => '',
+  saveLocale: () => {},
+  clearSavedLocale: () => {},
   addListener: () => {},
   removeListeners: () => {},
 };
@@ -514,8 +602,9 @@ This repository's own suite (`yarn test`) has complete examples in [`src/__tests
 ## Platform limitations
 
 - **iOS app-language override requires a restart.** `setAppLanguage` persists the preference for next launch only. `setLocale` is unaffected and works live on both platforms.
-- **RTL layout changes require a JS bundle reload.** `I18nManager.forceRTL` (called automatically when `manageRTL` is `true`) takes visual effect only after React Native reloads. Ask the user to restart when switching between LTR and RTL locales. `isRTL` itself updates immediately.
-- **Android `usesMetricSystem()` is heuristic.** Android has no measurement-system API, so the country is checked against the countries that officially use imperial/US customary units (US, Liberia, Myanmar). iOS uses `Locale.usesMetricSystem`.
+- **RTL layout changes require a JS bundle reload.** `I18nManager.forceRTL` (called automatically when `manageRTL` is `true`) takes visual effect only after React Native reloads. Use `onRTLReloadRequired` to ask the user to restart. `isRTL` itself updates immediately, and because the chosen language is saved, the restarted app comes back in the right direction.
+- **Android `usesMetricSystem()` follows ICU data.** It reads ICU's measurement system for the device locale, which includes the regional preference Android 14+ adds to the locale. If the locale has no region, it falls back to the countries that officially use imperial/US customary units (US, Liberia, Myanmar). iOS uses `Locale.usesMetricSystem`.
+- **Formatting relies on `Intl`.** Hermes provides number, date and plural formatting on both platforms (relative time uses the native fallback described above). Output can differ slightly from Node/Chrome depending on the platform's ICU version.
 - **Legacy language codes are normalized on Android.** `iw`, `in` and `ji` are reported as `he`, `id` and `yi` so they match the translation files you ship.
 - **Emulators don't always reflect real device locale lists.** Test multi-locale ordering through the OS language settings.
 

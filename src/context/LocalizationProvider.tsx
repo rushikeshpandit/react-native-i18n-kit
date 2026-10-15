@@ -160,12 +160,12 @@ export function LocalizationProvider({
    * @param next - Locale code to activate, e.g. `"fr"`. It does not need to
    * exist in `translations` (lookups then use the fallback locale).
    * @returns A promise that resolves once the locale state is updated.
-   * @throws {I18nKitError} `INVALID_LOCALE` (rejection) when `next` is empty;
-   * the active locale is left unchanged.
+   * @throws {I18nKitError} `INVALID_LOCALE` (rejection) when `next` is empty,
+   * whitespace-only or not a string; the active locale is left unchanged.
    */
   const setLocale = useCallback(
     async (next: string) => {
-      if (!next) {
+      if (typeof next !== 'string' || next.trim().length === 0) {
         throw new I18nKitError(
           'INVALID_LOCALE',
           'setLocale() requires a non-empty locale code.'
@@ -261,16 +261,21 @@ export function useLocalizationContext(): LocalizationContextValue {
   return ctx;
 }
 
+let sharedEmitter: NativeEventEmitter | null = null;
+
 /**
- * Exposes the NativeEventEmitter for "onLocaleChanged" events.
+ * Exposes the shared NativeEventEmitter for "onLocaleChanged" events so
+ * hooks can subscribe without each creating their own emitter instance.
  *
- * @returns A new emitter, or `null` when the native module is not linked.
+ * @returns The cached emitter, or `null` when the native module is not linked.
  */
 export function getI18nKitEventEmitter(): NativeEventEmitter | null {
   if (!NativeI18nKit) return null;
-  return new NativeEventEmitter(
+  if (sharedEmitter) return sharedEmitter;
+  sharedEmitter = new NativeEventEmitter(
     NativeI18nKit as unknown as ConstructorParameters<
       typeof NativeEventEmitter
     >[0]
   );
+  return sharedEmitter;
 }

@@ -15,4 +15,15 @@ const config = withMetroConfig(getDefaultConfig(__dirname), {
   dirname: __dirname,
 });
 
+// Resolve the library from `src/` (the "react-native-i18n-kit-source" export
+// condition) instead of the prebuilt `lib/`, so the example always runs the
+// current TypeScript sources.
+config.resolver = {
+  ...config.resolver,
+  unstable_conditionNames: [
+    'react-native-i18n-kit-source',
+    ...(config.resolver?.unstable_conditionNames ?? ['require', 'import']),
+  ],
+};
+
 module.exports = config;

@@ -16,16 +16,33 @@ import java.util.Locale
 object LocaleInfoMapper {
 
     /**
+     * Legacy ISO 639 codes that `java.util.Locale.getLanguage()` may still
+     * return, mapped to the modern codes apps ship translations under.
+     */
+    private val LEGACY_LANGUAGE_CODES = mapOf("iw" to "he", "in" to "id", "ji" to "yi")
+
+    /**
+     * Normalizes a language code to its modern ISO 639 form.
+     *
+     * @param languageCode a language code as reported by [Locale.getLanguage].
+     * @return the modern equivalent (`iw`→`he`, `in`→`id`, `ji`→`yi`), or
+     * [languageCode] unchanged when it is not a legacy code.
+     */
+    fun normalizeLanguageCode(languageCode: String): String =
+        LEGACY_LANGUAGE_CODES[languageCode] ?: languageCode
+
+    /**
      * Maps a single [Locale] into a `{ languageTag, languageCode, countryCode, isRTL }` map.
      *
      * @param locale the locale to describe.
      * @return a new [WritableMap] with the four `NativeLocaleInfo` fields;
-     * `languageTag` is the BCP-47 tag.
+     * `languageTag` is the BCP-47 tag and `languageCode` is normalized via
+     * [normalizeLanguageCode].
      */
     fun toWritableMap(locale: Locale): WritableMap {
         val map = Arguments.createMap()
         map.putString("languageTag", locale.toLanguageTag())
-        map.putString("languageCode", locale.language)
+        map.putString("languageCode", normalizeLanguageCode(locale.language))
         map.putString("countryCode", locale.country)
         map.putBoolean("isRTL", isRTL(locale))
         return map

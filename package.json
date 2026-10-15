@@ -62,9 +62,9 @@
   },
   "exports": {
     ".": {
-      "default": "./lib/module/index.js",
-      "source": "./src/index.tsx",
-      "types": "./lib/typescript/src/index.d.ts"
+      "react-native-i18n-kit-source": "./src/index.tsx",
+      "types": "./lib/typescript/src/index.d.ts",
+      "default": "./lib/module/index.js"
     },
     "./package.json": "./package.json"
   },
@@ -99,7 +99,7 @@
       "customExportConditions": [
         "require",
         "react-native",
-        "<%- project.sourceCondition -%>"
+        "react-native-i18n-kit-source"
       ]
     },
     "moduleNameMapper": {

@@ -2,7 +2,6 @@ package com.i18nkit.locale
 
 import android.content.Context
 import android.icu.util.Calendar as IcuCalendar
-import android.os.Build
 import android.text.format.DateFormat.is24HourFormat
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.WritableArray
@@ -62,13 +61,7 @@ class DeviceLocaleProvider(private val context: Context) {
      *
      * @return the ICU calendar type, or "gregorian" if ICU reports none.
      */
-    fun getCalendar(): String {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            IcuCalendar.getInstance(getLocales().first()).calendarType ?: "gregorian"
-        } else {
-            "gregorian"
-        }
-    }
+    fun getCalendar(): String = IcuCalendar.getInstance(getLocales().first()).type ?: "gregorian"
 
     /**
      * IANA time zone identifier, e.g. "Asia/Kolkata".

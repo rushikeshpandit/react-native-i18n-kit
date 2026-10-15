@@ -109,4 +109,7 @@ export interface Spec extends TurboModule {
   removeListeners(count: number): void;
 }
 
-export default TurboModuleRegistry.getEnforcing<Spec>('I18nKit');
+// `get` (not `getEnforcing`) so importing the library never throws when the
+// native module is missing; nativeApi.ts raises a descriptive I18nKitError
+// on first use instead.
+export default TurboModuleRegistry.get<Spec>('I18nKit');

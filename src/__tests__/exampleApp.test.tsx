@@ -1,4 +1,4 @@
-import { I18nManager } from 'react-native';
+import { Alert, I18nManager } from 'react-native';
 import TestRenderer, { act } from 'react-test-renderer';
 import App from '../../example/App';
 import {
@@ -60,6 +60,17 @@ beforeEach(() => {
     return true;
   });
   nativeMock.getAppLanguage.mockImplementation(() => stored);
+  // Saved-locale storage behaves like the real native store.
+  let saved = '';
+  nativeMock.getSavedLocale.mockImplementation(() => saved);
+  nativeMock.saveLocale.mockImplementation((value: string) => {
+    saved = value;
+    return true;
+  });
+  nativeMock.clearSavedLocale.mockImplementation(() => {
+    saved = '';
+    return true;
+  });
 });
 
 afterEach(() => {
@@ -73,9 +84,10 @@ describe('example app - API Explorer', () => {
     mounted = await renderApp();
     const all = texts(mounted.root);
 
-    expect(all).toContain('17/17 passed ✅');
+    expect(all).toContain('27/27 passed ✅');
+    expect(all).toContain('Self-test: 27/27 passed ✅');
     expect(all.filter((t) => t === 'FAIL')).toHaveLength(0);
-    expect(all.filter((t) => t === 'PASS')).toHaveLength(17);
+    expect(all.filter((t) => t === 'PASS')).toHaveLength(27);
 
     const called = (fn: jest.Mock) => expect(fn).toHaveBeenCalled();
     called(nativeMock.getDeviceLocales as jest.Mock);
@@ -103,7 +115,10 @@ describe('example app - API Explorer', () => {
     mounted = await renderApp();
     const all = texts(mounted.root);
 
-    expect(all).toContain('15/17 passed ❌');
+    expect(all).toContain('25/27 passed ❌');
+    expect(all.some((t) => t.startsWith('Self-test: 25/27 passed ❌ — '))).toBe(
+      true
+    );
     expect(all.filter((t) => t === 'FAIL')).toHaveLength(2);
   });
 
@@ -154,5 +169,68 @@ describe('example app - localisation flow', () => {
     expect(texts(mounted.root)).toContain('1 item in cart');
     await pressByLabel(mounted.root, 'Add item');
     expect(texts(mounted.root)).toContain('2 items in cart');
+  });
+});
+
+describe('example app - new features', () => {
+  it('shows locale-aware formatting that follows the active language', async () => {
+    mounted = await renderApp();
+    const en = texts(mounted.root);
+    expect(en).toContain('$1,234.50');
+    expect(en).toContain('25.6%');
+    expect(en).toContain('3 days ago');
+
+    await pressByLabel(mounted.root, 'Français');
+    const fr = texts(mounted.root).map((t) => t.replace(/\s/g, ' '));
+    expect(fr).toContain('1 234,50 $US');
+    expect(fr).toContain('il y a 3 jours');
+  });
+
+  it('saves the chosen language and restores it on the next start', async () => {
+    mounted = await renderApp();
+    await pressByLabel(mounted.root, 'Français');
+    expect(nativeMock.saveLocale).toHaveBeenCalledWith('fr');
+    act(() => mounted?.unmount());
+
+    mounted = await renderApp();
+    expect(texts(mounted.root)).toContain('Exemple I18nKit');
+  });
+
+  it('"Use device language" forgets the saved choice', async () => {
+    mounted = await renderApp();
+    await pressByLabel(mounted.root, 'Français');
+    expect(texts(mounted.root)).toContain('Exemple I18nKit');
+
+    await pressByLabel(mounted.root, "Utiliser la langue de l'appareil");
+    expect(nativeMock.clearSavedLocale).toHaveBeenCalled();
+    expect(texts(mounted.root)).toContain('I18nKit Example');
+  });
+
+  it('asks the user to restart when the layout direction changes', async () => {
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    mounted = await renderApp();
+    await pressByLabel(mounted.root, 'العربية');
+    expect(alert).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.stringContaining('')
+    );
+    expect(alert).toHaveBeenCalledTimes(1);
+  });
+
+  it("API Explorer leaves the user's saved language untouched", async () => {
+    nativeMock.getSavedLocale.mockReturnValue('fr');
+    let stored = 'fr';
+    nativeMock.getSavedLocale.mockImplementation(() => stored);
+    nativeMock.saveLocale.mockImplementation((v: string) => {
+      stored = v;
+      return true;
+    });
+    nativeMock.clearSavedLocale.mockImplementation(() => {
+      stored = '';
+      return true;
+    });
+    mounted = await renderApp();
+    expect(stored).toBe('fr');
+    expect(texts(mounted.root)).toContain('27/27 passed ✅');
   });
 });

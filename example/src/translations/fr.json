@@ -21,8 +21,22 @@
     "writingDirection": "Sens d'écriture",
     "rtl": "Droite à gauche",
     "ltr": "Gauche à droite",
-    "itemCount": { "zero": "Aucun article dans le panier", "one": "1 article dans le panier", "other": "{{count}} articles dans le panier" },
+    "itemCount": {
+      "zero": "Aucun article dans le panier",
+      "one": "1 article dans le panier",
+      "other": "{{count}} articles dans le panier"
+    },
     "addItem": "Ajouter un article",
-    "removeItem": "Retirer un article"
+    "removeItem": "Retirer un article",
+    "formattingSectionTitle": "Formatage (suit la langue active)",
+    "number": "Nombre",
+    "currency": "Devise",
+    "percent": "Pourcentage",
+    "date": "Date",
+    "time": "Heure (horloge de l'appareil)",
+    "relative": "Temps relatif",
+    "resetLanguage": "Utiliser la langue de l'appareil",
+    "rtlRestartTitle": "Redémarrage requis",
+    "rtlRestartMessage": "Fermez puis rouvrez l'application pour appliquer le nouveau sens d'écriture."
   }
 }

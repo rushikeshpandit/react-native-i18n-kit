@@ -2,7 +2,11 @@ import React, { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useDeviceLocale, useTranslation } from 'react-native-i18n-kit';
 import { ApiExplorer } from '../components/ApiExplorer';
+import type { Outcome } from '../components/ApiExplorer';
 import { LanguageSelector } from '../components/LanguageSelector';
+
+/** Fixed instant used by the formatting card so output is stable (2024-01-15 13:05 UTC). */
+const SAMPLE_DATE = new Date(Date.UTC(2024, 0, 15, 13, 5));
 
 /**
  * A small labeled row used throughout the "device info" card below.
@@ -34,9 +38,20 @@ function InfoRow({
  * locale is RTL.
  */
 export function HomeScreen(): React.ReactElement {
-  const { t, isRTL } = useTranslation();
+  const {
+    t,
+    isRTL,
+    resetLocale,
+    formatNumber,
+    formatCurrency,
+    formatPercent,
+    formatDate,
+    formatRelativeTime,
+  } = useTranslation();
   const device = useDeviceLocale();
   const [itemCount, setItemCount] = useState(0);
+  const [selfTest, setSelfTest] = useState<Outcome[] | null>(null);
+  const failing = selfTest?.filter((o) => !o.ok) ?? [];
 
   return (
     <ScrollView
@@ -48,6 +63,17 @@ export function HomeScreen(): React.ReactElement {
         {t('home.greeting', { name: 'Rushikesh' })}
       </Text>
       <Text style={styles.subtitle}>{t('home.subtitle')}</Text>
+      <Text
+        style={[
+          styles.badge,
+          failing.length === 0 ? styles.badgeOk : styles.badgeFail,
+        ]}
+        testID="self-test-badge"
+      >
+        {selfTest === null
+          ? 'Self-test: running…'
+          : `Self-test: ${selfTest.length - failing.length}/${selfTest.length} passed ${failing.length === 0 ? '✅' : '❌'}${failing.length ? ` — ${failing.map((o) => `${o.name} [${o.detail}]`).join(' | ')}` : ''}`}
+      </Text>
 
       <Text style={styles.sectionTitle}>{t('home.languageSectionTitle')}</Text>
       <LanguageSelector />
@@ -107,7 +133,54 @@ export function HomeScreen(): React.ReactElement {
         />
       </View>
 
-      <ApiExplorer />
+      <Text style={styles.sectionTitle}>
+        {t('home.formattingSectionTitle')}
+      </Text>
+      <View style={styles.card} testID="formatting-card">
+        <InfoRow label={t('home.number')} value={formatNumber(1234567.891)} />
+        <InfoRow
+          label={t('home.currency')}
+          value={formatCurrency(1234.5, 'USD')}
+        />
+        <InfoRow
+          label={t('home.percent')}
+          value={formatPercent(0.256, { maximumFractionDigits: 1 })}
+        />
+        <InfoRow
+          label={t('home.date')}
+          value={formatDate(SAMPLE_DATE, {
+            dateStyle: 'long',
+            timeZone: 'UTC',
+          })}
+        />
+        <InfoRow
+          label={t('home.time')}
+          value={formatDate(SAMPLE_DATE, {
+            hour: 'numeric',
+            minute: '2-digit',
+            timeZone: 'UTC',
+          })}
+        />
+        <InfoRow
+          label={t('home.relative')}
+          value={formatRelativeTime(-3, 'day', { numeric: 'auto' })}
+        />
+      </View>
+
+      <Text
+        accessibilityRole="button"
+        onPress={() => {
+          resetLocale().catch((error) =>
+            console.warn('Failed to reset locale:', error)
+          );
+        }}
+        style={styles.counterButton}
+        testID="reset-language"
+      >
+        {t('home.resetLanguage')}
+      </Text>
+
+      <ApiExplorer onResult={setSelfTest} />
     </ScrollView>
   );
 }
@@ -138,6 +211,9 @@ const styles = StyleSheet.create({
     color: '#667085',
     marginBottom: 8,
   },
+  badge: { fontSize: 13, fontWeight: '700' },
+  badgeOk: { color: '#067647' },
+  badgeFail: { color: '#B42318' },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',

@@ -1,5 +1,5 @@
 import React from 'react';
-import { StatusBar, StyleSheet } from 'react-native';
+import { Alert, StatusBar, StyleSheet } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { LocalizationProvider } from 'react-native-i18n-kit';
 import { HomeScreen } from './src/screens/HomeScreen';
@@ -10,6 +10,19 @@ import hi from './src/translations/hi.json';
 
 /** Every translation the example ships. Declared once so the object identity is stable across renders. */
 const TRANSLATIONS = { en, fr, ar, hi };
+
+/**
+ * Asks the user to restart: React Native applies a new layout direction
+ * (LTR <-> RTL) only after a reload.
+ *
+ * @param isRTL - The direction that will apply after the restart.
+ */
+const handleRTLReloadRequired = (isRTL: boolean): void => {
+  const { rtlRestartTitle, rtlRestartMessage } = (
+    isRTL ? TRANSLATIONS.ar : TRANSLATIONS.en
+  ).home;
+  Alert.alert(rtlRestartTitle, rtlRestartMessage);
+};
 
 /**
  * Root component of the example app.
@@ -30,6 +43,7 @@ export default function App(): React.ReactElement {
         fallbackLocale="en"
         autoDetectDeviceLocale
         manageRTL
+        onRTLReloadRequired={handleRTLReloadRequired}
       >
         <SafeAreaView style={styles.flex}>
           <StatusBar barStyle="dark-content" />

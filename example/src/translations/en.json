@@ -21,8 +21,22 @@
     "writingDirection": "Writing direction",
     "rtl": "Right-to-left",
     "ltr": "Left-to-right",
-    "itemCount": { "zero": "No items in cart", "one": "1 item in cart", "other": "{{count}} items in cart" },
+    "itemCount": {
+      "zero": "No items in cart",
+      "one": "1 item in cart",
+      "other": "{{count}} items in cart"
+    },
     "addItem": "Add item",
-    "removeItem": "Remove item"
+    "removeItem": "Remove item",
+    "formattingSectionTitle": "Formatting (follows the active language)",
+    "number": "Number",
+    "currency": "Currency",
+    "percent": "Percent",
+    "date": "Date",
+    "time": "Time (device clock)",
+    "relative": "Relative time",
+    "resetLanguage": "Use device language",
+    "rtlRestartTitle": "Restart required",
+    "rtlRestartMessage": "Close and reopen the app to apply the new layout direction."
   }
 }

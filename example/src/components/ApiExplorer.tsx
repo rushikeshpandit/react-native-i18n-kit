@@ -2,14 +2,19 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import {
   I18nKitError,
+  clearSavedLocale,
+  createFormatters,
   getAppLanguage,
   getCalendar,
   getCountry,
   getDeviceLocale,
   getDeviceLocales,
   getNumberFormatSettings,
+  getSavedLocale,
   getTimeZone,
   isRTLForLanguage,
+  matchLocale,
+  saveLocale,
   setAppLanguage,
   uses24HourClock,
   usesMetricSystem,
@@ -22,7 +27,8 @@ type Check = {
   run: () => unknown | Promise<unknown>;
 };
 
-type Outcome = { name: string; ok: boolean; detail: string };
+/** Result of one check, as shown in a row and reported through `onResult`. */
+export type Outcome = { name: string; ok: boolean; detail: string };
 
 /**
  * Throws when an expectation does not hold.
@@ -228,6 +234,116 @@ const CHECKS: Check[] = [
       expectI18nKitError(() => setAppLanguage('   '), 'INVALID_LOCALE'),
   },
   {
+    name: 'saveLocale / getSavedLocale / clearSavedLocale round trip',
+    run: () => {
+      // Restores whatever the user had saved, so running this never changes
+      // the language the app will start with.
+      const previous = getSavedLocale();
+      try {
+        saveLocale('xx-TEST');
+        assert(getSavedLocale() === 'xx-TEST', 'saved value not returned');
+        clearSavedLocale();
+        assert(getSavedLocale() === '', 'clear did not remove the value');
+      } finally {
+        if (previous) saveLocale(previous);
+        else clearSavedLocale();
+      }
+      assert(getSavedLocale() === previous, 'previous value not restored');
+      return `saved → read → cleared → restored ("${previous}")`;
+    },
+  },
+  {
+    name: "saveLocale('') → INVALID_LOCALE",
+    run: () => expectI18nKitError(() => saveLocale(''), 'INVALID_LOCALE'),
+  },
+  {
+    name: "saveLocale('   ') → INVALID_LOCALE",
+    run: () => expectI18nKitError(() => saveLocale('   '), 'INVALID_LOCALE'),
+  },
+  {
+    name: "matchLocale('zh-Hans-CN', ['zh-CN']) → zh-CN",
+    run: () => {
+      const match = matchLocale('zh-Hans-CN', ['en', 'zh-CN']);
+      assert(match === 'zh-CN', `got ${match}`);
+      assert(
+        matchLocale('de', ['en', 'fr']) === undefined,
+        'de must not match'
+      );
+      return match;
+    },
+  },
+  {
+    name: 'formatNumber / formatPercent (device locale)',
+    run: () => {
+      const f = createFormatters(getDeviceLocale().languageTag);
+      const number = f.formatNumber(1234567.891);
+      // Digits only: grouping differs per locale (en-IN prints 12,34,567.891).
+      assert(number.replace(/\D/g, '') === '1234567891', `got ${number}`);
+      assert(/26/.test(f.formatPercent(0.256)), 'percent');
+      return `${number} · ${f.formatPercent(0.256)}`;
+    },
+  },
+  {
+    name: "formatCurrency(1234.5, 'USD')",
+    run: () => {
+      const value = createFormatters(
+        getDeviceLocale().languageTag
+      ).formatCurrency(1234.5, 'USD');
+      assert(/1\D?234/.test(value) && /\$|USD/.test(value), `got ${value}`);
+      return value;
+    },
+  },
+  {
+    name: 'formatDate + formatRelativeTime',
+    run: () => {
+      const f = createFormatters(getDeviceLocale().languageTag);
+      const date = f.formatDate(new Date(Date.UTC(2024, 0, 15)), {
+        dateStyle: 'long',
+        timeZone: 'UTC',
+      });
+      assert(/2024/.test(date), `got ${date}`);
+      const relative = f.formatRelativeTime(-3, 'day');
+      assert(relative.length > 0, 'empty relative time');
+      return `${date} · ${relative}`;
+    },
+  },
+  {
+    name: 'Intl support in this JavaScript runtime',
+    run: () => {
+      // Informational: shows which Intl features Hermes provides so the
+      // library's native fallbacks can be understood at a glance.
+      const intl = (typeof Intl === 'undefined' ? {} : Intl) as Record<
+        string,
+        unknown
+      >;
+      const features = [
+        'NumberFormat',
+        'DateTimeFormat',
+        'PluralRules',
+        'RelativeTimeFormat',
+      ];
+      return features
+        .map((f) => `${f}: ${typeof intl[f] === 'function' ? 'yes' : 'no'}`)
+        .join(' · ');
+    },
+  },
+  {
+    name: 'formatNumber(NaN) → INVALID_ARGUMENT',
+    run: () =>
+      expectI18nKitError(
+        () => createFormatters('en').formatNumber(NaN),
+        'INVALID_ARGUMENT'
+      ),
+  },
+  {
+    name: "formatCurrency(1, 'US') → INVALID_ARGUMENT",
+    run: () =>
+      expectI18nKitError(
+        () => createFormatters('en').formatCurrency(1, 'US'),
+        'INVALID_ARGUMENT'
+      ),
+  },
+  {
     name: "setAppLanguage('') → INVALID_LOCALE",
     run: () => expectI18nKitError(() => setAppLanguage(''), 'INVALID_LOCALE'),
   },
@@ -255,21 +371,37 @@ async function runChecks(): Promise<Outcome[]> {
   return outcomes;
 }
 
+/** Props of {@link ApiExplorer}. */
+type ApiExplorerProps = {
+  /**
+   * Called each time a full run finishes.
+   *
+   * @param outcomes - One entry per check, in order.
+   */
+  onResult?: (outcomes: Outcome[]) => void;
+};
+
 /**
  * Exercises every public native API of the library on the real device and
  * reports PASS/FAIL per call, including the expected-failure paths. Runs
  * automatically on mount; tap "Run again" to repeat.
  *
+ * @param props.onResult - Optional callback receiving the outcomes of each run.
  * @returns The explorer card with a PASS/FAIL summary and one row per check.
  */
-export function ApiExplorer(): React.ReactElement {
+export function ApiExplorer({
+  onResult,
+}: ApiExplorerProps): React.ReactElement {
   const [outcomes, setOutcomes] = useState<Outcome[] | null>(null);
 
   /** Clears the results and re-runs every check. */
   const run = useCallback(() => {
     setOutcomes(null);
-    runChecks().then(setOutcomes);
-  }, []);
+    runChecks().then((results) => {
+      setOutcomes(results);
+      onResult?.(results);
+    });
+  }, [onResult]);
 
   useEffect(run, [run]);
 
